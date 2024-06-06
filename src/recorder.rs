@@ -80,8 +80,8 @@ impl ScreenRecorder {
             ImageBuffer::from_raw(pixels.width as u32, pixels.height as u32, data)
                 .ok_or_eyre("unable to create image buffer")?;
 
+        let path = format!("screenshots/{}.jpeg.enc");
         let mut encrypted_writer = encrypted_writer("text.jpeg", self.passphrase.clone())?;
-        image.write_to(&mut encrypted_writer, ImageFormat::Jpeg)?;
 
         info!("captured screenshot!");
 
