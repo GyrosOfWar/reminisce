@@ -1,35 +1,20 @@
 use std::{
     fs::{self, File},
-    io::{Read, Write},
+    io::{Read, Seek, Write},
 };
 
-use age::{
-    secrecy::{Secret, SecretString},
-    stream::StreamReader,
-    Decryptor, Encryptor,
-};
+use age::{secrecy::SecretString, stream::StreamReader, Decryptor, Encryptor};
 use camino::Utf8Path;
 use color_eyre::Result;
 
-/// Encrypt arbitrary bytes and write them to a file.
-pub fn encrypt_file(
-    bytes: &[u8],
+pub fn encrypted_writer(
     path: impl AsRef<Utf8Path>,
     passphrase: SecretString,
-) -> Result<()> {
-    let encrypted = {
-        let encryptor = Encryptor::with_user_passphrase(passphrase);
-
-        let mut encrypted = vec![];
-        let mut writer = encryptor.wrap_output(&mut encrypted)?;
-        writer.write_all(bytes)?;
-        writer.finish()?;
-
-        encrypted
-    };
-
-    fs::write(path.as_ref(), encrypted)?;
-    Ok(())
+) -> Result<impl Write + Seek> {
+    let encryptor = Encryptor::with_user_passphrase(passphrase);
+    let inner_writer = File::create(path.as_ref())?;
+    let writer = encryptor.wrap_output(inner_writer)?;
+    Ok(writer)
 }
 
 pub fn decrypt_file_stream(

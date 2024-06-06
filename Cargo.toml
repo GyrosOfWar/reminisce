@@ -8,6 +8,7 @@ age = "0.10.0"
 camino = "1.1.7"
 color-eyre = "0.6.3"
 crabgrab = { version = "0.3.7", features = ["screenshot"] }
+image = "0.25.1"
 rpassword = "7.3.1"
 sysinfo = "0.30.12"
 time = "0.3.36"
