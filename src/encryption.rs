@@ -3,14 +3,22 @@ use std::{
     io::{Read, Write},
 };
 
-use age::{secrecy::Secret, stream::StreamReader, Decryptor, Encryptor};
+use age::{
+    secrecy::{Secret, SecretString},
+    stream::StreamReader,
+    Decryptor, Encryptor,
+};
 use camino::Utf8Path;
 use color_eyre::Result;
 
 /// Encrypt arbitrary bytes and write them to a file.
-pub fn encrypt_file(bytes: &[u8], path: impl AsRef<Utf8Path>, passphrase: &str) -> Result<()> {
+pub fn encrypt_file(
+    bytes: &[u8],
+    path: impl AsRef<Utf8Path>,
+    passphrase: SecretString,
+) -> Result<()> {
     let encrypted = {
-        let encryptor = Encryptor::with_user_passphrase(Secret::new(passphrase.to_owned()));
+        let encryptor = Encryptor::with_user_passphrase(passphrase);
 
         let mut encrypted = vec![];
         let mut writer = encryptor.wrap_output(&mut encrypted)?;
@@ -26,7 +34,7 @@ pub fn encrypt_file(bytes: &[u8], path: impl AsRef<Utf8Path>, passphrase: &str) 
 
 pub fn decrypt_file_stream(
     path: impl AsRef<Utf8Path>,
-    passphrase: &str,
+    passphrase: &SecretString,
 ) -> Result<StreamReader<File>> {
     let encrypted = File::open(path.as_ref())?;
 
@@ -35,15 +43,18 @@ pub fn decrypt_file_stream(
         _ => unreachable!(),
     };
 
-    decryptor
-        .decrypt(&Secret::new(passphrase.to_owned()), None)
-        .map_err(From::from)
+    decryptor.decrypt(passphrase, None).map_err(From::from)
 }
 
 /// Decrypt a file and return the decrypted bytes.
-pub fn decrypt_file(path: impl AsRef<Utf8Path>, passphrase: &str) -> Result<Vec<u8>> {
+pub fn decrypt_file(path: impl AsRef<Utf8Path>, passphrase: &SecretString) -> Result<Vec<u8>> {
     let mut reader = decrypt_file_stream(path, passphrase)?;
     let mut decrypted = vec![];
     reader.read_to_end(&mut decrypted)?;
     Ok(decrypted)
+}
+
+pub fn get_passphrase() -> Result<SecretString> {
+    let input = rpassword::prompt_password("Enter your passphrase: ")?;
+    Ok(SecretString::new(input))
 }
