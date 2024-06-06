@@ -24,9 +24,9 @@ async fn main() -> Result<()> {
     let databse = Database {};
     let mut work_queue = WorkQueue::new(databse);
     let sender = work_queue.sender();
+    let screen_recorder = ScreenRecorder::new(Duration::from_secs(30), sender, passphrase).await?;
 
     tokio::spawn(async move {
-        let screen_recorder = ScreenRecorder::new(Duration::from_secs(30), sender, passphrase);
         screen_recorder
             .start()
             .await

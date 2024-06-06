@@ -1,10 +1,16 @@
 use age::secrecy::SecretString;
-use color_eyre::Result;
-use crabgrab::feature::screenshot;
+use color_eyre::{eyre::OptionExt, Result};
+use crabgrab::{
+    capturable_content::{CapturableContent, CapturableContentFilter},
+    capture_stream::{CaptureAccessToken, CaptureConfig, CaptureStream},
+    feature::screenshot,
+    prelude::VideoFrameBitmap,
+};
 use std::{
     sync::atomic::{AtomicI64, Ordering},
     time::Duration,
 };
+use time::OffsetDateTime;
 use tokio::sync::mpsc;
 use tracing::info;
 
@@ -16,24 +22,52 @@ pub struct ScreenRecorder {
     interval: Duration,
     sender: mpsc::UnboundedSender<WorkItem>,
     passphrase: SecretString,
+    access_token: CaptureAccessToken,
 }
 
 impl ScreenRecorder {
-    pub fn new(
+    pub async fn new(
         interval: Duration,
         sender: mpsc::UnboundedSender<WorkItem>,
         passphrase: SecretString,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let access_token = CaptureStream::test_access(false);
+        let access_token = match access_token {
+            Some(t) => t,
+            None => CaptureStream::request_access(false)
+                .await
+                .ok_or_eyre("unable to get capture permission")?,
+        };
+
+        Ok(Self {
             interval,
             sender,
             passphrase,
-        }
+            access_token,
+        })
     }
 
     async fn create_screenshot(&self) -> Result<Screenshot> {
-        let video_frame = screenshot::take_screenshot(token, config).await?;
-        todo!()
+        let filter = CapturableContentFilter::NORMAL_WINDOWS;
+        let content = CapturableContent::new(filter).await?;
+        let formats = CaptureStream::supported_pixel_formats();
+        let display = content
+            .displays()
+            .next()
+            .ok_or_eyre("must have at least one display")?;
+        let config = CaptureConfig::with_display(display, formats[0]);
+
+        let video_frame = screenshot::take_screenshot(self.access_token.clone(), config).await?;
+        let bitmap = video_frame.get_bitmap()?;
+
+        let screenshot = Screenshot {
+            id: SCREENSHOT_ID.fetch_add(1, Ordering::SeqCst),
+            description: None,
+            path: "todo".into(),
+            timestamp: OffsetDateTime::now_utc(),
+        };
+
+        Ok(screenshot)
     }
 
     pub async fn start(&self) -> Result<()> {
