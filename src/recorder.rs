@@ -94,6 +94,7 @@ impl ScreenRecorder {
             description: None,
             path: "todo".into(),
             timestamp: OffsetDateTime::now_utc(),
+            dpi: video_frame.dpi(),
         };
 
         Ok(screenshot)

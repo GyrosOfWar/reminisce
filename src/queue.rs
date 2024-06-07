@@ -41,13 +41,14 @@ impl WorkQueue {
         load_below_thresholds
     }
 
-    fn do_work(&self, item: WorkItem) -> Result<()> {
-        let screenshot = self.database.find_by_id(item.screenshot_id)?;
+    async fn do_work(&self, item: WorkItem) -> Result<()> {
+        let screenshot = self.database.find_by_id(item.screenshot_id).await?;
         // TODO pre-process the screenshot
         let description = llm::generate_description(&screenshot)?;
         // TODO post-process the description if necessary
         self.database
-            .update_description(screenshot.id, &description)?;
+            .update_description(screenshot.id, &description)
+            .await?;
 
         Ok(())
     }
@@ -57,7 +58,7 @@ impl WorkQueue {
             if self.is_available_for_work().await {
                 let next_item = self.rx.try_recv();
                 if let Ok(item) = next_item {
-                    if let Err(e) = self.do_work(item) {
+                    if let Err(e) = self.do_work(item).await {
                         error!("error processing work item: {e:?}");
                     }
                 }
