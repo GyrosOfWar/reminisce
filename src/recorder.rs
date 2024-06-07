@@ -12,17 +12,23 @@ use time::OffsetDateTime;
 use tokio::sync::mpsc;
 use tracing::info;
 
-use crate::{database::NewScreenshot, encryption::encrypt_file, queue::WorkItem};
+use crate::{
+    database::{Database, NewScreenshot, Screenshot},
+    encryption::encrypt_file,
+    queue::WorkItem,
+};
 
 pub struct ScreenRecorder {
     interval: Duration,
     sender: mpsc::UnboundedSender<WorkItem>,
     passphrase: SecretString,
     access_token: CaptureAccessToken,
+    database: Database,
 }
 
 impl ScreenRecorder {
     pub async fn new(
+        database: Database,
         interval: Duration,
         sender: mpsc::UnboundedSender<WorkItem>,
         passphrase: SecretString,
@@ -36,6 +42,7 @@ impl ScreenRecorder {
         };
 
         Ok(Self {
+            database,
             interval,
             sender,
             passphrase,
@@ -43,7 +50,7 @@ impl ScreenRecorder {
         })
     }
 
-    async fn create_screenshot(&self) -> Result<NewScreenshot> {
+    async fn create_screenshot(&self) -> Result<Screenshot> {
         let filter = CapturableContentFilter::NORMAL_WINDOWS;
         let content = CapturableContent::new(filter).await?;
         // supported by both windows and macos
@@ -86,6 +93,8 @@ impl ScreenRecorder {
             dpi: 72.0,
             timestamp: OffsetDateTime::now_utc(),
         };
+
+        let screenshot = self.database.insert(screenshot).await?;
 
         Ok(screenshot)
     }

@@ -3,14 +3,18 @@ use std::{
     io::{Read, Write},
 };
 
-use age::{secrecy::SecretString, stream::StreamReader, Decryptor, Encryptor};
+use age::{
+    secrecy::SecretString,
+    stream::{StreamReader, StreamWriter},
+    Decryptor, Encryptor,
+};
 use camino::Utf8Path;
 use color_eyre::Result;
 
-pub fn encrypted_writer(
+fn encrypting_writer(
     path: impl AsRef<Utf8Path>,
     passphrase: SecretString,
-) -> Result<impl Write> {
+) -> Result<StreamWriter<File>> {
     let encryptor = Encryptor::with_user_passphrase(passphrase);
     let inner_writer = File::create(path.as_ref())?;
     let writer = encryptor.wrap_output(inner_writer)?;
@@ -22,11 +26,15 @@ pub fn encrypt_file(
     passphrase: SecretString,
     data: &[u8],
 ) -> Result<()> {
-    let mut writer = encrypted_writer(path, passphrase)?;
-    writer.write_all(data)?;
-    Ok(())
+    tokio::task::block_in_place(|| {
+        let mut writer = encrypting_writer(path, passphrase)?;
+        writer.write_all(data)?;
+        writer.finish()?;
+        Ok(())
+    })
 }
-pub fn decrypt_file_stream(
+
+fn decrypting_reader(
     path: impl AsRef<Utf8Path>,
     passphrase: &SecretString,
 ) -> Result<StreamReader<File>> {
@@ -42,10 +50,12 @@ pub fn decrypt_file_stream(
 
 /// Decrypt a file and return the decrypted bytes.
 pub fn decrypt_file(path: impl AsRef<Utf8Path>, passphrase: &SecretString) -> Result<Vec<u8>> {
-    let mut reader = decrypt_file_stream(path, passphrase)?;
-    let mut decrypted = vec![];
-    reader.read_to_end(&mut decrypted)?;
-    Ok(decrypted)
+    tokio::task::block_in_place(|| {
+        let mut reader = decrypting_reader(path, passphrase)?;
+        let mut decrypted = vec![];
+        reader.read_to_end(&mut decrypted)?;
+        Ok(decrypted)
+    })
 }
 
 pub fn get_passphrase() -> Result<SecretString> {

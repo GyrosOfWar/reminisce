@@ -5,7 +5,7 @@ use tokio::time;
 use tracing::{error, info};
 
 use crate::{
-    database::{Database, NewScreenshot},
+    database::{Database, Screenshot},
     health::SystemHealth,
     llm,
 };
@@ -14,7 +14,7 @@ use tokio::sync::mpsc;
 const WORK_INTERVAL: Duration = Duration::from_secs(60);
 
 pub struct WorkItem {
-    pub screenshot: NewScreenshot,
+    pub screenshot: Screenshot,
 }
 
 pub struct WorkQueue {
@@ -47,9 +47,9 @@ impl WorkQueue {
     }
 
     async fn do_work(&self, item: WorkItem) -> Result<()> {
-        let screenshot = self.database.insert(item.screenshot).await?;
+        let screenshot = item.screenshot;
         // TODO pre-process the screenshot
-        let description = llm::generate_description(&screenshot)?;
+        let description = llm::generate_description(&screenshot).await?;
         // TODO post-process the description if necessary
         self.database
             .update_description(screenshot.id, &description)
@@ -61,6 +61,13 @@ impl WorkQueue {
     pub async fn start(&mut self) -> Result<()> {
         time::sleep(Duration::from_secs(5)).await;
         info!("starting work queue");
+
+        let pending = self.database.find_pending().await?;
+        info!("found {} pending screenshots", pending.len());
+        for screenshot in pending {
+            let item = WorkItem { screenshot };
+            self.tx.send(item)?;
+        }
 
         loop {
             if self.is_available_for_work().await {
