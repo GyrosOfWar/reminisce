@@ -1,4 +1,5 @@
 use age::secrecy::SecretString;
+use camino::Utf8PathBuf;
 use color_eyre::Result;
 use database::Database;
 use queue::WorkQueue;
@@ -41,6 +42,28 @@ async fn decrypt_screenshots(database: Database, passphrase: SecretString) -> Re
     Ok(())
 }
 
+async fn delete_everything(database: Database) -> Result<()> {
+    use std::fs;
+
+    database.delete_all().await?;
+    let files = fs::read_dir("screenshots")?;
+    for file in files {
+        let file = file?;
+        let path = Utf8PathBuf::try_from(file.path())?;
+        let should_delete = path
+            .file_name()
+            .map(|f| f.ends_with(".enc"))
+            .unwrap_or(false)
+            && file.file_type()?.is_file();
+
+        if should_delete {
+            fs::remove_file(path)?;
+        }
+    }
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     use std::env;
@@ -66,6 +89,7 @@ async fn main() -> Result<()> {
     match argument.as_deref() {
         Some("record") => start_recorder(database, passphrase).await?,
         Some("decrypt") => decrypt_screenshots(database, passphrase).await?,
+        Some("delete") => delete_everything(database).await?,
         _ => {
             info!("no command specified, exiting");
         }

@@ -117,4 +117,11 @@ impl Database {
         .await
         .map_err(From::from)
     }
+
+    pub async fn delete_all(&self) -> Result<()> {
+        sqlx::query!("DELETE FROM screenshots")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
 }

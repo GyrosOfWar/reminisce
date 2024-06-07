@@ -19,7 +19,7 @@ pub async fn generate_description(
     let base64 = STANDARD.encode(bytes);
     let request = GenerationRequest::new(
         MODEL_NAME.into(),
-        "The following image is a screenshot from a MacOS computer. Describe its contents.".into(),
+        "The following image is a screenshot from a MacOS computer. Describe its contents using keywords, separated by comams.".into(),
     )
     .images(vec![Image::from_base64(&base64)]);
 
