@@ -6,8 +6,9 @@ use crabgrab::{
     feature::screenshot,
     prelude::{FrameBitmap, VideoFrameBitmap},
 };
-use image::{ImageBuffer, ImageFormat, Pixel, Rgba, RgbaImage};
+use image::{ImageBuffer, ImageFormat, RgbaImage};
 use std::{
+    io::Cursor,
     sync::atomic::{AtomicI64, Ordering},
     time::Duration,
 };
@@ -15,7 +16,7 @@ use time::OffsetDateTime;
 use tokio::sync::mpsc;
 use tracing::info;
 
-use crate::{database::Screenshot, encryption::encrypted_writer, queue::WorkItem};
+use crate::{database::Screenshot, encryption::encrypt_file, queue::WorkItem};
 
 static SCREENSHOT_ID: AtomicI64 = AtomicI64::new(0);
 
@@ -80,8 +81,11 @@ impl ScreenRecorder {
             ImageBuffer::from_raw(pixels.width as u32, pixels.height as u32, data)
                 .ok_or_eyre("unable to create image buffer")?;
 
-        let path = format!("screenshots/{}.jpeg.enc");
-        let mut encrypted_writer = encrypted_writer("text.jpeg", self.passphrase.clone())?;
+        let timestamp = OffsetDateTime::now_utc().to_string();
+        let path = format!("screenshots/{}.webp.enc", timestamp);
+        let mut bytes = Cursor::new(vec![]);
+        image.write_to(&mut bytes, ImageFormat::WebP)?;
+        encrypt_file(path, self.passphrase.clone(), bytes.get_ref())?;
 
         info!("captured screenshot!");
 

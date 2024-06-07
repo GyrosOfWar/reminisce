@@ -16,7 +16,7 @@ mod recorder;
 async fn main() -> Result<()> {
     color_eyre::install()?;
 
-    tracing_subscriber::fmt().pretty().init();
+    tracing_subscriber::fmt().compact().init();
     info!("starting up");
 
     let passphrase = encryption::get_passphrase()?;

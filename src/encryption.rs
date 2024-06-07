@@ -1,22 +1,31 @@
-use age::{
-    secrecy::SecretString,
-    stream::{StreamReader, StreamWriter},
-    Decryptor, Encryptor,
+use std::{
+    fs::File,
+    io::{Read, Write},
 };
+
+use age::{secrecy::SecretString, stream::StreamReader, Decryptor, Encryptor};
 use camino::Utf8Path;
 use color_eyre::Result;
-use tokio::fs::File;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-pub async fn encrypt_file(path: impl AsRef<Utf8Path>, passphrase: SecretString) -> Result<()> {
+pub fn encrypted_writer(
+    path: impl AsRef<Utf8Path>,
+    passphrase: SecretString,
+) -> Result<impl Write> {
     let encryptor = Encryptor::with_user_passphrase(passphrase);
-    let writer = File::create(path.as_ref()).await?;
-    let writer = encryptor.wrap_async_output(writer)?;
-
-    Ok(())
-    // Ok(writer)
+    let inner_writer = File::create(path.as_ref())?;
+    let writer = encryptor.wrap_output(inner_writer)?;
+    Ok(writer)
 }
 
+pub fn encrypt_file(
+    path: impl AsRef<Utf8Path>,
+    passphrase: SecretString,
+    data: &[u8],
+) -> Result<()> {
+    let mut writer = encrypted_writer(path, passphrase)?;
+    writer.write_all(data)?;
+    Ok(())
+}
 pub fn decrypt_file_stream(
     path: impl AsRef<Utf8Path>,
     passphrase: &SecretString,
