@@ -3,5 +3,8 @@ CREATE TABLE screenshots (
     "path" VARCHAR NOT NULL,
     "dpi" DOUBLE PRECISION NOT NULL,
     "description" VARCHAR,
-    "status" VARCHAR NOT NULL
+    "status" VARCHAR NOT NULL,
+    "window_title" VARCHAR NOT NULL,
+    "application_name" VARCHAR NOT NULL,
+    "text_content" VARCHAR
 );

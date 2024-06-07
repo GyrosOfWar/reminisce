@@ -1,7 +1,10 @@
+use age::secrecy::SecretString;
 use color_eyre::Result;
 use sqlx::SqlitePool;
 use time::OffsetDateTime;
 use tracing::info;
+
+use crate::encryption;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
 pub enum ProcessingStatus {
@@ -22,7 +25,22 @@ pub struct Screenshot {
     /// LLM-generated description of the screenshot.
     pub description: Option<String>,
 
+    /// OCR text extracted from the screenshot.
+    pub text_content: Option<String>,
+
     pub status: ProcessingStatus,
+
+    pub window_title: String,
+
+    pub application_name: String,
+    // TODO embeddings
+}
+
+impl Screenshot {
+    pub fn load_image(&self, passphrase: &SecretString) -> Result<Vec<u8>> {
+        let bytes = encryption::decrypt_file(&self.path, passphrase)?;
+        Ok(bytes)
+    }
 }
 
 #[derive(Debug)]
@@ -30,6 +48,8 @@ pub struct NewScreenshot {
     pub path: String,
     pub dpi: f64,
     pub timestamp: OffsetDateTime,
+    pub window_title: String,
+    pub application_name: String,
 }
 
 #[derive(Clone, Debug)]
@@ -47,7 +67,7 @@ impl Database {
     pub async fn find_by_id(&self, id: i64) -> Result<Screenshot> {
         sqlx::query_as!(
             Screenshot,
-            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, dpi, description, status AS \"status: _\" 
+            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, dpi, description, status AS \"status: _\", window_title, application_name, text_content
             FROM screenshots 
             WHERE rowid = ?",
             id
@@ -70,16 +90,31 @@ impl Database {
         Ok(())
     }
 
+    pub async fn update_text_content(&self, id: i64, text_content: &str) -> Result<()> {
+        sqlx::query!(
+            "UPDATE screenshots SET text_content = ?, status = ? WHERE rowid = ?",
+            text_content,
+            ProcessingStatus::Finished,
+            id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
     pub async fn insert(&self, screenshot: NewScreenshot) -> Result<Screenshot> {
         info!("inserting screenshot {screenshot:?} into database");
         let result = sqlx::query!(
-            "INSERT INTO screenshots (timestamp, path, dpi, description, status)
-             VALUES (?, ?, ?, ?, ?) RETURNING rowid",
+            "INSERT INTO screenshots (timestamp, path, dpi, description, status, window_title, application_name)
+             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING rowid",
             screenshot.timestamp,
             screenshot.path,
             screenshot.dpi,
             None::<String>,
             ProcessingStatus::Pending,
+            screenshot.window_title,
+            screenshot.application_name
         )
         .fetch_one(&self.pool)
         .await?;
@@ -91,13 +126,16 @@ impl Database {
             dpi: screenshot.dpi,
             description: None,
             status: ProcessingStatus::Pending,
+            window_title: screenshot.window_title,
+            application_name: screenshot.application_name,
+            text_content: None,
         })
     }
 
     pub async fn find_all(&self) -> Result<Vec<Screenshot>> {
         sqlx::query_as!(
             Screenshot,
-            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, dpi, description, status AS \"status: _\" 
+            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, dpi, description, status AS \"status: _\", window_title, application_name, text_content
             FROM screenshots"
         )
         .fetch_all(&self.pool)
@@ -108,7 +146,7 @@ impl Database {
     pub async fn find_pending(&self) -> Result<Vec<Screenshot>> {
         sqlx::query_as!(
             Screenshot,
-            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, dpi, description, status AS \"status: _\" 
+            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, dpi, description, status AS \"status: _\", window_title, application_name, text_content
             FROM screenshots 
             WHERE status = ?",
             ProcessingStatus::Pending

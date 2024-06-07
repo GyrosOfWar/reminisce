@@ -6,13 +6,12 @@ use tokio::time;
 use tracing::{error, info};
 
 use crate::{
+    configuration::{Configuration, ProcessingType},
     database::{Database, Screenshot},
     health::SystemHealth,
-    image_processing::llm,
+    image_processing::{llm, ocr},
 };
 use tokio::sync::mpsc;
-
-const WORK_INTERVAL: Duration = Duration::from_secs(15);
 
 pub struct WorkItem {
     pub screenshot: Screenshot,
@@ -24,10 +23,11 @@ pub struct WorkQueue {
     database: Database,
     system_health: SystemHealth,
     passphrase: SecretString,
+    configuration: Configuration,
 }
 
 impl WorkQueue {
-    pub fn new(database: Database, passphrase: SecretString) -> Self {
+    pub fn new(database: Database, passphrase: SecretString, configuration: Configuration) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
 
         Self {
@@ -36,6 +36,7 @@ impl WorkQueue {
             database,
             system_health: SystemHealth::new(),
             passphrase,
+            configuration,
         }
     }
 
@@ -49,14 +50,38 @@ impl WorkQueue {
         load_below_thresholds
     }
 
-    async fn do_work(&self, item: WorkItem) -> Result<()> {
-        let screenshot = item.screenshot;
-        // TODO pre-process the screenshot
-        let description = llm::generate_description(&screenshot, &self.passphrase).await?;
-        // TODO post-process the description if necessary
+    async fn process_llm(&self, screenshot: &Screenshot) -> Result<()> {
+        let result = llm::generate_description(&screenshot, &self.passphrase).await?;
+        info!("llm result: {result}");
         self.database
-            .update_description(screenshot.id, &description)
+            .update_description(screenshot.id, &result)
             .await?;
+
+        Ok(())
+    }
+
+    async fn process_ocr(&self, screenshot: &Screenshot) -> Result<()> {
+        let title = ocr::extract_text(screenshot, &self.passphrase)?;
+        info!("ocr result: {title}");
+        self.database
+            .update_text_content(screenshot.id, &title)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn process_embeddings(&self, screenshot: &Screenshot) -> Result<()> {
+        Ok(())
+    }
+
+    async fn do_work(&self, WorkItem { screenshot }: WorkItem) -> Result<()> {
+        for processing_type in &self.configuration.processing {
+            match processing_type {
+                ProcessingType::Llm => self.process_llm(&screenshot).await?,
+                ProcessingType::Ocr => self.process_ocr(&screenshot).await?,
+                ProcessingType::Embeddings => self.process_embeddings(&screenshot).await?,
+            }
+        }
 
         Ok(())
     }
@@ -81,7 +106,7 @@ impl WorkQueue {
                     }
                 }
             }
-            time::sleep(WORK_INTERVAL).await;
+            time::sleep(self.configuration.work_interval).await;
         }
     }
 }

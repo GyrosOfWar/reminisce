@@ -1,7 +1,11 @@
+use active_win_pos_rs::ActiveWindow;
 use age::secrecy::SecretString;
-use color_eyre::{eyre::OptionExt, Result};
+use color_eyre::{
+    eyre::{eyre, OptionExt},
+    Result,
+};
 use crabgrab::{
-    capturable_content::{CapturableContent, CapturableContentFilter},
+    capturable_content::{CapturableContent, CapturableContentFilter, CapturableWindow},
     capture_stream::{CaptureAccessToken, CaptureConfig, CapturePixelFormat, CaptureStream},
     feature::screenshot,
     prelude::{FrameBitmap, VideoFrameBitmap},
@@ -13,6 +17,7 @@ use tokio::sync::mpsc;
 use tracing::info;
 
 use crate::{
+    configuration::Configuration,
     database::{Database, NewScreenshot, Screenshot},
     encryption::encrypt_file,
     queue::WorkItem,
@@ -24,6 +29,7 @@ pub struct ScreenRecorder {
     passphrase: SecretString,
     access_token: CaptureAccessToken,
     database: Database,
+    configuration: Configuration,
 }
 
 impl ScreenRecorder {
@@ -32,6 +38,7 @@ impl ScreenRecorder {
         interval: Duration,
         sender: mpsc::UnboundedSender<WorkItem>,
         passphrase: SecretString,
+        configuration: Configuration,
     ) -> Result<Self> {
         let access_token = CaptureStream::test_access(false);
         let access_token = match access_token {
@@ -47,23 +54,34 @@ impl ScreenRecorder {
             sender,
             passphrase,
             access_token,
+            configuration,
         })
     }
 
-    async fn create_screenshot(&self) -> Result<Screenshot> {
-        let filter = CapturableContentFilter::NORMAL_WINDOWS;
+    async fn capture_active_window(&self) -> Result<(FrameBitmap, String, String)> {
+        let filter = CapturableContentFilter::EVERYTHING_NORMAL;
         let content = CapturableContent::new(filter).await?;
         // supported by both windows and macos
         let format = CapturePixelFormat::Bgra8888;
-        let display = content
-            .displays()
-            .next()
-            .ok_or_eyre("must have at least one display")?;
-        let config = CaptureConfig::with_display(display, format);
 
+        let active_window = active_win_pos_rs::get_active_window()
+            .map_err(|_| eyre!("unable to get active window"))?;
+        let window = content
+            .windows()
+            .find(|w| w.application().pid() == active_window.process_id as i32)
+            .ok_or_eyre("could not find active window")?;
+        let app_name = window.application().name();
+        let title = window.title();
+
+        let config = CaptureConfig::with_window(window, format)?;
         let video_frame = screenshot::take_screenshot(self.access_token.clone(), config).await?;
         let bitmap = video_frame.get_bitmap()?;
 
+        Ok((bitmap, app_name, title))
+    }
+
+    async fn create_screenshot(&self) -> Result<Screenshot> {
+        let (bitmap, app_name, title) = self.capture_active_window().await?;
         let pixels = match bitmap {
             FrameBitmap::BgraUnorm8x4(bitmap) => bitmap,
             FrameBitmap::RgbaUnormPacked1010102(_) => unreachable!(),
@@ -85,15 +103,20 @@ impl ScreenRecorder {
         let image = image.to_rgb8();
 
         let timestamp = OffsetDateTime::now_utc().unix_timestamp();
-        let path = format!("screenshots/{}.jpeg.enc", timestamp);
+        let path = self
+            .configuration
+            .screenshot_directory
+            .join(format!("{}.jpeg.enc", timestamp));
         let mut bytes = Cursor::new(vec![]);
         image.write_to(&mut bytes, ImageFormat::Jpeg)?;
         encrypt_file(&path, self.passphrase.clone(), bytes.get_ref())?;
         let screenshot = NewScreenshot {
-            path,
+            path: path.to_string(),
             // video_frame.dpi() crashes on macos
             dpi: 72.0,
             timestamp: OffsetDateTime::now_utc(),
+            window_title: title,
+            application_name: app_name,
         };
 
         let screenshot = self.database.insert(screenshot).await?;

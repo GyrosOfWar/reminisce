@@ -1,10 +1,10 @@
 use age::secrecy::SecretString;
 use camino::Utf8PathBuf;
 use color_eyre::Result;
+use configuration::Configuration;
 use database::Database;
 use queue::WorkQueue;
 use recorder::ScreenRecorder;
-use std::time::Duration;
 use tracing::info;
 
 mod configuration;
@@ -15,11 +15,22 @@ mod image_processing;
 mod queue;
 mod recorder;
 
-async fn start_recorder(database: Database, passphrase: SecretString) -> Result<()> {
-    let mut work_queue = WorkQueue::new(database.clone(), passphrase.clone());
+async fn start_recorder(
+    database: Database,
+    passphrase: SecretString,
+    configuration: Configuration,
+) -> Result<()> {
+    let mut work_queue =
+        WorkQueue::new(database.clone(), passphrase.clone(), configuration.clone());
     let sender = work_queue.sender();
-    let screen_recorder =
-        ScreenRecorder::new(database, Duration::from_secs(30), sender, passphrase).await?;
+    let screen_recorder = ScreenRecorder::new(
+        database,
+        configuration.screenshot_interval,
+        sender,
+        passphrase,
+        configuration,
+    )
+    .await?;
 
     tokio::spawn(async move {
         screen_recorder
@@ -33,21 +44,28 @@ async fn start_recorder(database: Database, passphrase: SecretString) -> Result<
     Ok(())
 }
 
-async fn decrypt_screenshots(database: Database, passphrase: SecretString) -> Result<()> {
+async fn decrypt_screenshots(
+    database: Database,
+    passphrase: SecretString,
+    configuration: Configuration,
+) -> Result<()> {
     let screenshots = database.find_all().await?;
     for screenshot in screenshots {
         let bytes = encryption::decrypt_file(&screenshot.path, &passphrase)?;
-        tokio::fs::write(format!("screenshots/{}.jpeg", screenshot.id), bytes).await?;
+        let path = configuration
+            .screenshot_directory
+            .join(format!("{}.jpeg", screenshot.id));
+        tokio::fs::write(path, bytes).await?;
     }
 
     Ok(())
 }
 
-async fn delete_everything(database: Database) -> Result<()> {
+async fn delete_everything(database: Database, configuration: Configuration) -> Result<()> {
     use std::fs;
 
     database.delete_all().await?;
-    let files = fs::read_dir("screenshots")?;
+    let files = fs::read_dir(configuration.screenshot_directory)?;
     for file in files {
         let file = file?;
         let path = Utf8PathBuf::try_from(file.path())?;
@@ -79,20 +97,21 @@ async fn main() -> Result<()> {
         tracing_subscriber::fmt().compact().init();
     }
 
-    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".into());
+    let configuration = configuration::load()?;
+    // let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".into());
     info!("starting up");
-    info!("using databse URL {database_url}");
+    info!("using configuration {configuration:?}");
 
     let passphrase = encryption::get_passphrase()?;
-    let database = Database::new(&database_url).await?;
+    let database = Database::new(&configuration.database_url).await?;
 
     let argument = env::args().nth(1);
     match argument.as_deref() {
-        Some("record") => start_recorder(database, passphrase).await?,
-        Some("decrypt") => decrypt_screenshots(database, passphrase).await?,
-        Some("delete") => delete_everything(database).await?,
+        Some("record") => start_recorder(database, passphrase, configuration).await?,
+        Some("decrypt") => decrypt_screenshots(database, passphrase, configuration).await?,
+        Some("delete") => delete_everything(database, configuration).await?,
         _ => {
-            info!("no command specified, exiting");
+            start_recorder(database, passphrase, configuration).await?;
         }
     }
 

@@ -4,21 +4,21 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+active-win-pos-rs = "0.8.3"
 age = { version = "0.10.0", features = ["async"] }
 base64 = "0.22.1"
 camino = { version = "1.1.7", features = ["serde1"] }
 color-eyre = "0.6.3"
-config = { version = "0.14.0", features = [
-    "convert-case",
-    "json",
-], default-features = false }
 console-subscriber = "0.2.0"
 crabgrab = { version = "0.3.7", features = ["screenshot"] }
 dotenvy = "0.15.7"
 image = "0.25.1"
+ocrs = "0.8.0"
 ollama-rs = "0.1.9"
 rpassword = "7.3.1"
 serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.117"
+serde_with = "3.8.1"
 sqlx = { version = "0.7.4", features = [
     "runtime-tokio-rustls",
     "sqlite",
