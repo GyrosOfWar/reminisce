@@ -14,7 +14,7 @@ mod queue;
 mod recorder;
 
 async fn start_recorder(database: Database, passphrase: SecretString) -> Result<()> {
-    let mut work_queue = WorkQueue::new(database.clone());
+    let mut work_queue = WorkQueue::new(database.clone(), passphrase.clone());
     let sender = work_queue.sender();
     let screen_recorder =
         ScreenRecorder::new(database, Duration::from_secs(30), sender, passphrase).await?;
@@ -35,7 +35,7 @@ async fn decrypt_screenshots(database: Database, passphrase: SecretString) -> Re
     let screenshots = database.find_all().await?;
     for screenshot in screenshots {
         let bytes = encryption::decrypt_file(&screenshot.path, &passphrase)?;
-        tokio::fs::write(format!("screenshots/{}.webp", screenshot.id), bytes).await?;
+        tokio::fs::write(format!("screenshots/{}.jpeg", screenshot.id), bytes).await?;
     }
 
     Ok(())

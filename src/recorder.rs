@@ -6,7 +6,7 @@ use crabgrab::{
     feature::screenshot,
     prelude::{FrameBitmap, VideoFrameBitmap},
 };
-use image::{ImageBuffer, ImageFormat, RgbaImage};
+use image::{DynamicImage, ImageBuffer, ImageFormat, RgbaImage};
 use std::{io::Cursor, time::Duration};
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
@@ -81,11 +81,13 @@ impl ScreenRecorder {
         let image: RgbaImage =
             ImageBuffer::from_raw(pixels.width as u32, pixels.height as u32, data)
                 .ok_or_eyre("unable to create image buffer")?;
+        let image = DynamicImage::from(image);
+        let image = image.to_rgb8();
 
         let timestamp = OffsetDateTime::now_utc().unix_timestamp();
-        let path = format!("screenshots/{}.webp.enc", timestamp);
+        let path = format!("screenshots/{}.jpeg.enc", timestamp);
         let mut bytes = Cursor::new(vec![]);
-        image.write_to(&mut bytes, ImageFormat::WebP)?;
+        image.write_to(&mut bytes, ImageFormat::Jpeg)?;
         encrypt_file(&path, self.passphrase.clone(), bytes.get_ref())?;
         let screenshot = NewScreenshot {
             path,

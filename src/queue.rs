@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use age::secrecy::SecretString;
 use color_eyre::Result;
 use tokio::time;
 use tracing::{error, info};
@@ -11,7 +12,7 @@ use crate::{
 };
 use tokio::sync::mpsc;
 
-const WORK_INTERVAL: Duration = Duration::from_secs(60);
+const WORK_INTERVAL: Duration = Duration::from_secs(15);
 
 pub struct WorkItem {
     pub screenshot: Screenshot,
@@ -22,10 +23,11 @@ pub struct WorkQueue {
     tx: mpsc::UnboundedSender<WorkItem>,
     database: Database,
     system_health: SystemHealth,
+    passphrase: SecretString,
 }
 
 impl WorkQueue {
-    pub fn new(database: Database) -> Self {
+    pub fn new(database: Database, passphrase: SecretString) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
 
         Self {
@@ -33,6 +35,7 @@ impl WorkQueue {
             tx,
             database,
             system_health: SystemHealth::new(),
+            passphrase,
         }
     }
 
@@ -49,7 +52,7 @@ impl WorkQueue {
     async fn do_work(&self, item: WorkItem) -> Result<()> {
         let screenshot = item.screenshot;
         // TODO pre-process the screenshot
-        let description = llm::generate_description(&screenshot).await?;
+        let description = llm::generate_description(&screenshot, &self.passphrase).await?;
         // TODO post-process the description if necessary
         self.database
             .update_description(screenshot.id, &description)

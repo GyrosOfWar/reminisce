@@ -5,12 +5,14 @@ edition = "2021"
 
 [dependencies]
 age = { version = "0.10.0", features = ["async"] }
+base64 = "0.22.1"
 camino = "1.1.7"
 color-eyre = "0.6.3"
 console-subscriber = "0.2.0"
 crabgrab = { version = "0.3.7", features = ["screenshot"] }
 dotenvy = "0.15.7"
 image = "0.25.1"
+ollama-rs = "0.1.9"
 rpassword = "7.3.1"
 sqlx = { version = "0.7.4", features = [
     "runtime-tokio-rustls",
