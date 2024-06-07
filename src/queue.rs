@@ -8,7 +8,7 @@ use tracing::{error, info};
 use crate::{
     database::{Database, Screenshot},
     health::SystemHealth,
-    llm,
+    image_processing::llm,
 };
 use tokio::sync::mpsc;
 

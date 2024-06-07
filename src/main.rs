@@ -7,10 +7,11 @@ use recorder::ScreenRecorder;
 use std::time::Duration;
 use tracing::info;
 
+mod configuration;
 mod database;
 mod encryption;
 mod health;
-mod llm;
+mod image_processing;
 mod queue;
 mod recorder;
 
