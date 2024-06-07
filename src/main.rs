@@ -14,17 +14,26 @@ mod recorder;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    use std::env;
+
     color_eyre::install()?;
     dotenvy::dotenv()?;
+    let use_tokio_console = env::var("USE_TOKIO_CONSOLE").is_ok();
 
-    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".into());
-    tracing_subscriber::fmt().compact().init();
+    if use_tokio_console {
+        console_subscriber::init();
+    } else {
+        tracing_subscriber::fmt().compact().init();
+    }
+
+    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".into());
     info!("starting up");
+    info!("using databse URL {database_url}");
 
     let passphrase = encryption::get_passphrase()?;
 
-    let databse = Database::new(&database_url).await?;
-    let mut work_queue = WorkQueue::new(databse);
+    let database = Database::new(&database_url).await?;
+    let mut work_queue = WorkQueue::new(database);
     let sender = work_queue.sender();
     let screen_recorder = ScreenRecorder::new(Duration::from_secs(30), sender, passphrase).await?;
 

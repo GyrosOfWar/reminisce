@@ -1,15 +1,20 @@
-use std::{thread, time::Duration};
+use std::time::Duration;
 
 use color_eyre::Result;
+use tokio::time;
 use tracing::{error, info};
 
-use crate::{database::Database, health::SystemHealth, llm};
+use crate::{
+    database::{Database, NewScreenshot},
+    health::SystemHealth,
+    llm,
+};
 use tokio::sync::mpsc;
 
 const WORK_INTERVAL: Duration = Duration::from_secs(60);
 
 pub struct WorkItem {
-    pub screenshot_id: i64,
+    pub screenshot: NewScreenshot,
 }
 
 pub struct WorkQueue {
@@ -42,7 +47,7 @@ impl WorkQueue {
     }
 
     async fn do_work(&self, item: WorkItem) -> Result<()> {
-        let screenshot = self.database.find_by_id(item.screenshot_id).await?;
+        let screenshot = self.database.insert(item.screenshot).await?;
         // TODO pre-process the screenshot
         let description = llm::generate_description(&screenshot)?;
         // TODO post-process the description if necessary
@@ -54,6 +59,9 @@ impl WorkQueue {
     }
 
     pub async fn start(&mut self) -> Result<()> {
+        time::sleep(Duration::from_secs(5)).await;
+        info!("starting work queue");
+
         loop {
             if self.is_available_for_work().await {
                 let next_item = self.rx.try_recv();
@@ -63,8 +71,7 @@ impl WorkQueue {
                     }
                 }
             }
-
-            thread::sleep(WORK_INTERVAL);
+            time::sleep(WORK_INTERVAL).await;
         }
     }
 }

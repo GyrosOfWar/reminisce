@@ -7,6 +7,7 @@ edition = "2021"
 age = { version = "0.10.0", features = ["async"] }
 camino = "1.1.7"
 color-eyre = "0.6.3"
+console-subscriber = "0.2.0"
 crabgrab = { version = "0.3.7", features = ["screenshot"] }
 dotenvy = "0.15.7"
 image = "0.25.1"

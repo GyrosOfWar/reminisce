@@ -17,6 +17,14 @@ pub struct Screenshot {
     pub description: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct NewScreenshot {
+    pub path: String,
+    pub dpi: f64,
+    pub timestamp: OffsetDateTime,
+}
+
+#[derive(Clone, Debug)]
 pub struct Database {
     pool: SqlitePool,
 }
@@ -41,5 +49,27 @@ impl Database {
     pub async fn update_description(&self, id: i64, description: &str) -> Result<()> {
         info!("updating screenshot description for id {id} with {description}");
         Ok(())
+    }
+
+    pub async fn insert(&self, screenshot: NewScreenshot) -> Result<Screenshot> {
+        info!("inserting screenshot {screenshot:?} into database");
+        let result = sqlx::query!(
+            "INSERT INTO screenshots (timestamp, path, dpi, description)
+             VALUES (?, ?, ?, ?) RETURNING rowid",
+            screenshot.timestamp,
+            screenshot.path,
+            screenshot.dpi,
+            None::<String>,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(Screenshot {
+            id: result.rowid,
+            timestamp: screenshot.timestamp,
+            path: screenshot.path.clone(),
+            dpi: screenshot.dpi,
+            description: None,
+        })
     }
 }

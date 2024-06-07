@@ -7,18 +7,12 @@ use crabgrab::{
     prelude::{FrameBitmap, VideoFrameBitmap},
 };
 use image::{ImageBuffer, ImageFormat, RgbaImage};
-use std::{
-    io::Cursor,
-    sync::atomic::{AtomicI64, Ordering},
-    time::Duration,
-};
+use std::{io::Cursor, time::Duration};
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
 use tracing::info;
 
-use crate::{database::Screenshot, encryption::encrypt_file, queue::WorkItem};
-
-static SCREENSHOT_ID: AtomicI64 = AtomicI64::new(0);
+use crate::{database::NewScreenshot, encryption::encrypt_file, queue::WorkItem};
 
 pub struct ScreenRecorder {
     interval: Duration,
@@ -49,7 +43,7 @@ impl ScreenRecorder {
         })
     }
 
-    async fn create_screenshot(&self) -> Result<Screenshot> {
+    async fn create_screenshot(&self) -> Result<NewScreenshot> {
         let filter = CapturableContentFilter::NORMAL_WINDOWS;
         let content = CapturableContent::new(filter).await?;
         // supported by both windows and macos
@@ -81,20 +75,16 @@ impl ScreenRecorder {
             ImageBuffer::from_raw(pixels.width as u32, pixels.height as u32, data)
                 .ok_or_eyre("unable to create image buffer")?;
 
-        let timestamp = OffsetDateTime::now_utc().to_string();
+        let timestamp = OffsetDateTime::now_utc().unix_timestamp();
         let path = format!("screenshots/{}.webp.enc", timestamp);
         let mut bytes = Cursor::new(vec![]);
         image.write_to(&mut bytes, ImageFormat::WebP)?;
-        encrypt_file(path, self.passphrase.clone(), bytes.get_ref())?;
-
-        info!("captured screenshot!");
-
-        let screenshot = Screenshot {
-            id: SCREENSHOT_ID.fetch_add(1, Ordering::SeqCst),
-            description: None,
-            path: "todo".into(),
+        encrypt_file(&path, self.passphrase.clone(), bytes.get_ref())?;
+        let screenshot = NewScreenshot {
+            path,
+            // video_frame.dpi() crashes on macos
+            dpi: 72.0,
             timestamp: OffsetDateTime::now_utc(),
-            dpi: video_frame.dpi(),
         };
 
         Ok(screenshot)
@@ -104,9 +94,7 @@ impl ScreenRecorder {
         info!("starting screen recorder");
         loop {
             let screenshot = self.create_screenshot().await?;
-            self.sender.send(WorkItem {
-                screenshot_id: screenshot.id,
-            })?;
+            self.sender.send(WorkItem { screenshot })?;
             tokio::time::sleep(self.interval).await;
         }
     }
