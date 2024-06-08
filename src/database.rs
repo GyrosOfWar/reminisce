@@ -1,5 +1,6 @@
 use age::secrecy::SecretString;
 use color_eyre::Result;
+use image::{DynamicImage, ImageFormat, RgbImage};
 use sqlx::SqlitePool;
 use time::OffsetDateTime;
 use tracing::info;
@@ -37,9 +38,15 @@ pub struct Screenshot {
 }
 
 impl Screenshot {
-    pub fn load_image(&self, passphrase: &SecretString) -> Result<Vec<u8>> {
+    pub fn load_image_bytes(&self, passphrase: &SecretString) -> Result<Vec<u8>> {
         let bytes = encryption::decrypt_file(&self.path, passphrase)?;
         Ok(bytes)
+    }
+
+    pub fn load_image(&self, passphrase: &SecretString) -> Result<RgbImage> {
+        let bytes = self.load_image_bytes(passphrase)?;
+        let image = image::load_from_memory_with_format(&bytes, ImageFormat::Jpeg)?;
+        Ok(image.into_rgb8())
     }
 }
 
@@ -71,6 +78,19 @@ impl Database {
             FROM screenshots 
             WHERE rowid = ?",
             id
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(From::from)
+    }
+
+    pub async fn find_most_recent_screenshot(&self) -> Result<Screenshot> {
+        sqlx::query_as!(
+            Screenshot,
+            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, dpi, description, status AS \"status: _\", window_title, application_name, text_content
+            FROM screenshots 
+            ORDER BY timestamp DESC
+            LIMIT 1"
         )
         .fetch_one(&self.pool)
         .await

@@ -13,6 +13,7 @@ console-subscriber = "0.2.0"
 crabgrab = { version = "0.3.7", features = ["screenshot"] }
 dotenvy = "0.15.7"
 image = "0.25.1"
+ndarray = "0.15.6"
 ocrs = "0.8.0"
 ollama-rs = "0.1.9"
 rpassword = "7.3.1"

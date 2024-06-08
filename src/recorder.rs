@@ -9,7 +9,7 @@ use crabgrab::{
     feature::screenshot,
     prelude::{FrameBitmap, VideoFrameBitmap},
 };
-use image::{DynamicImage, ImageBuffer, ImageFormat, RgbaImage};
+use image::{DynamicImage, ImageBuffer, ImageFormat, RgbImage, RgbaImage};
 use std::{io::Cursor, time::Duration};
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
@@ -19,8 +19,15 @@ use crate::{
     configuration::Configuration,
     database::{Database, NewScreenshot, Screenshot},
     encryption::encrypt_file,
+    image_processing::similarity::is_similar,
     queue::WorkItem,
 };
+
+struct CapturedScreenshot {
+    bitmap: FrameBitmap,
+    app_name: String,
+    title: String,
+}
 
 pub struct ScreenRecorder {
     interval: Duration,
@@ -57,7 +64,7 @@ impl ScreenRecorder {
         })
     }
 
-    async fn capture_active_window(&self) -> Result<(FrameBitmap, String, String)> {
+    async fn capture_active_window(&self) -> Result<CapturedScreenshot> {
         let filter = CapturableContentFilter::EVERYTHING_NORMAL;
         let content = CapturableContent::new(filter).await?;
         // supported by both windows and macos
@@ -75,12 +82,27 @@ impl ScreenRecorder {
         let config = CaptureConfig::with_window(window, format)?;
         let video_frame = screenshot::take_screenshot(self.access_token.clone(), config).await?;
         let bitmap = video_frame.get_bitmap()?;
-
-        Ok((bitmap, app_name, title))
+        Ok(CapturedScreenshot {
+            bitmap,
+            app_name,
+            title,
+        })
     }
 
-    async fn create_screenshot(&self) -> Result<Screenshot> {
-        let (bitmap, app_name, title) = self.capture_active_window().await?;
+    async fn should_save_screenshot(&self, screenshot: &RgbImage) -> Result<bool> {
+        let last_screenshot = self.database.find_most_recent_screenshot().await?;
+        let last_image = last_screenshot.load_image(&self.passphrase)?;
+        let last_image = DynamicImage::from(last_image);
+        let screenshot = DynamicImage::ImageRgb8(screenshot.clone());
+        Ok(!is_similar(&last_image, &screenshot))
+    }
+
+    async fn create_screenshot(&self) -> Result<Option<Screenshot>> {
+        let CapturedScreenshot {
+            bitmap,
+            app_name,
+            title,
+        } = self.capture_active_window().await?;
         let pixels = match bitmap {
             FrameBitmap::BgraUnorm8x4(bitmap) => bitmap,
             FrameBitmap::RgbaUnormPacked1010102(_) => unreachable!(),
@@ -101,6 +123,10 @@ impl ScreenRecorder {
         let image = DynamicImage::from(image);
         let image = image.to_rgb8();
 
+        if !self.should_save_screenshot(&image).await? {
+            return Ok(None);
+        }
+
         let timestamp = OffsetDateTime::now_utc().unix_timestamp();
         let path = self
             .configuration
@@ -120,15 +146,18 @@ impl ScreenRecorder {
 
         let screenshot = self.database.insert(screenshot).await?;
 
-        Ok(screenshot)
+        Ok(Some(screenshot))
     }
 
     pub async fn start(&self) -> Result<()> {
         info!("starting screen recorder");
         loop {
-            let screenshot = self.create_screenshot().await?;
-            self.sender.send(WorkItem { screenshot })?;
-            tokio::time::sleep(self.interval).await;
+            if let Some(screenshot) = self.create_screenshot().await? {
+                self.sender.send(WorkItem { screenshot })?;
+                tokio::time::sleep(self.interval).await;
+            } else {
+                info!("screenshots are too similar, skipping");
+            }
         }
     }
 }

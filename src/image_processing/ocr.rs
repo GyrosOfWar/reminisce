@@ -8,8 +8,7 @@ pub fn extract_text(screenshot: &Screenshot, passphrase: &SecretString) -> Resul
     params.recognition_model = Some(rten::Model::load_file("models/text-recognition.rten")?);
     params.detection_model = Some(rten::Model::load_file("models/text-detection.rten")?);
     let engine = OcrEngine::new(params).map_err(|e| eyre!("Failed to create engine: {}", e))?;
-    let bytes = screenshot.load_image(passphrase)?;
-    let image = image::load_from_memory_with_format(&bytes, image::ImageFormat::Jpeg)?.into_rgb8();
+    let image = screenshot.load_image(passphrase)?;
     let img_source = ImageSource::from_bytes(image.as_raw(), image.dimensions())?;
     let input = engine
         .prepare_input(img_source)
