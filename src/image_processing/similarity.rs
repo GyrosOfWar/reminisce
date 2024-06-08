@@ -1,7 +1,7 @@
-use color_eyre::eyre::Context;
+use color_eyre::eyre::{bail, Context};
 use color_eyre::Result;
 use image::flat::SampleLayout;
-use image::DynamicImage;
+use image::{DynamicImage, GenericImageView};
 use ndarray::{Array2, ShapeBuilder};
 
 fn to_ndarray(image: DynamicImage) -> Result<Array2<f32>> {
@@ -22,6 +22,10 @@ fn to_ndarray(image: DynamicImage) -> Result<Array2<f32>> {
 /// Compute the mean Structural Similarity Index between two images.
 /// Source: https://github.com/openrecall/openrecall/blob/main/openrecall/app.py#L247
 fn similarity_index(image1: &DynamicImage, image2: &DynamicImage, l: f32) -> Result<f32> {
+    if image1.dimensions() != image2.dimensions() {
+        bail!("Images must have the same dimensions");
+    }
+
     let k1 = 0.01;
     let k2 = 0.03;
     let c1 = (k1 * l) * (k1 * l);

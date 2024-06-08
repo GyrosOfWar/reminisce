@@ -13,10 +13,14 @@ pub enum ProcessingStatus {
     Finished,
 }
 
+#[derive(Debug)]
 pub struct Screenshot {
+    /// Sequential ID of the screenshot in the database
     pub id: i64,
+
     /// When the screenshot was taken
     pub timestamp: OffsetDateTime,
+
     /// Path to the encrypted screenshot file on disk
     pub path: String,
 
@@ -26,10 +30,13 @@ pub struct Screenshot {
     /// OCR text extracted from the screenshot.
     pub text_content: Option<String>,
 
+    /// Processing status of the screenshot
     pub status: ProcessingStatus,
 
+    /// Title of the window that was active when the screenshot was taken
     pub window_title: String,
 
+    /// Name of the application that was active when the screenshot was taken
     pub application_name: String,
     // TODO embeddings
 }

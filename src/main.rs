@@ -98,9 +98,7 @@ async fn main() -> Result<()> {
     }
 
     let configuration = configuration::load()?;
-    // let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".into());
-    info!("starting up");
-    info!("using configuration {configuration:?}");
+    info!("starting up, using configuration {configuration:?}");
 
     let passphrase = encryption::get_passphrase()?;
     let database = Database::new(&configuration.database_url).await?;

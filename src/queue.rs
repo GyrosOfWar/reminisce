@@ -11,6 +11,7 @@ use crate::database::{Database, Screenshot};
 use crate::health::SystemHealth;
 use crate::image_processing::{llm, ocr};
 
+#[derive(Debug)]
 pub struct WorkItem {
     pub screenshot: Screenshot,
 }
@@ -49,7 +50,7 @@ impl WorkQueue {
     }
 
     async fn process_llm(&self, screenshot: &Screenshot) -> Result<()> {
-        let result = llm::generate_description(&screenshot, &self.passphrase).await?;
+        let result = llm::generate_description(screenshot, &self.passphrase).await?;
         debug!("llm result: {result}");
         self.database
             .update_description(screenshot.id, &result)
@@ -85,7 +86,8 @@ impl WorkQueue {
     }
 
     pub async fn start(&mut self) -> Result<()> {
-        time::sleep(Duration::from_secs(5)).await;
+        info!("waiting a bit before starting work queue");
+        time::sleep(Duration::from_secs_f64(2.5)).await;
         info!("starting work queue");
 
         let pending = self.database.find_pending().await?;
@@ -97,8 +99,10 @@ impl WorkQueue {
 
         loop {
             if self.is_available_for_work().await {
+                debug!("system is available for work");
                 let next_item = self.rx.try_recv();
                 if let Ok(item) = next_item {
+                    debug!("processing work item {item:?}");
                     if let Err(e) = self.do_work(item).await {
                         error!("error processing work item: {e:?}");
                     }

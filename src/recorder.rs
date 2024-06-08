@@ -13,7 +13,7 @@ use crabgrab::prelude::{FrameBitmap, VideoFrameBitmap};
 use image::{DynamicImage, ImageBuffer, ImageFormat, RgbImage, RgbaImage};
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
-use tracing::info;
+use tracing::{info, instrument, trace};
 
 use crate::configuration::Configuration;
 use crate::database::{Database, NewScreenshot, Screenshot};
@@ -62,7 +62,8 @@ impl ScreenRecorder {
         })
     }
 
-    async fn capture_active_window(&self) -> Result<CapturedScreenshot> {
+    #[instrument(skip(self))]
+    async fn capture_screen(&self) -> Result<CapturedScreenshot> {
         let filter = CapturableContentFilter::EVERYTHING_NORMAL;
         let content = CapturableContent::new(filter).await?;
         // supported by both windows and macos
@@ -76,17 +77,14 @@ impl ScreenRecorder {
             .windows()
             .find(|w| w.application().pid() == active_window.process_id as i32)
             .ok_or_eyre("could not find active window")?;
+
         let app_name = window.application().name();
         let title = window.title();
-        info!(
-            "capturing screenshot of application {} - {} (pid {})",
-            app_name,
-            title,
-            window.application().pid()
-        );
+        info!("capturing window: {} - {}", app_name, title);
 
-        let config = CaptureConfig::with_window(window, format)?;
-        let video_frame = screenshot::take_screenshot(self.access_token.clone(), config).await?;
+        let display = content.displays().next().ok_or_eyre("no displays found")?;
+        let config = CaptureConfig::with_display(display, format);
+        let video_frame = screenshot::take_screenshot(self.access_token, config).await?;
         let bitmap = video_frame.get_bitmap()?;
         Ok(CapturedScreenshot {
             bitmap,
@@ -95,6 +93,7 @@ impl ScreenRecorder {
         })
     }
 
+    #[instrument(skip(self, screenshot))]
     async fn should_save_screenshot(&self, screenshot: &RgbImage) -> Result<bool> {
         let last_screenshot = self.database.find_most_recent_screenshot().await?;
         match last_screenshot {
@@ -109,12 +108,13 @@ impl ScreenRecorder {
         }
     }
 
+    #[instrument(skip(self))]
     async fn create_screenshot(&self) -> Result<Option<Screenshot>> {
         let CapturedScreenshot {
             bitmap,
             app_name,
             title,
-        } = self.capture_active_window().await?;
+        } = self.capture_screen().await?;
         let pixels = match bitmap {
             FrameBitmap::BgraUnorm8x4(bitmap) => bitmap,
             FrameBitmap::RgbaUnormPacked1010102(_) => unreachable!(),
@@ -124,7 +124,7 @@ impl ScreenRecorder {
 
         let data: Vec<_> = pixels
             .data
-            .into_iter()
+            .iter()
             .copied()
             .flat_map(|[b, g, r, a]| [r, g, b, a])
             .collect();
@@ -174,6 +174,7 @@ impl ScreenRecorder {
                 }
             }
 
+            trace!("sleeping for {} seconds", self.interval.as_secs_f64());
             tokio::time::sleep(self.interval).await;
         }
     }
