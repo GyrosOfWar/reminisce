@@ -20,9 +20,6 @@ pub struct Screenshot {
     /// Path to the encrypted screenshot file on disk
     pub path: String,
 
-    /// The DPI of the screenshot (useful for retina screens etc.)
-    pub dpi: f64,
-
     /// LLM-generated description of the screenshot.
     pub description: Option<String>,
 
@@ -53,7 +50,6 @@ impl Screenshot {
 #[derive(Debug)]
 pub struct NewScreenshot {
     pub path: String,
-    pub dpi: f64,
     pub timestamp: OffsetDateTime,
     pub window_title: String,
     pub application_name: String,
@@ -74,7 +70,7 @@ impl Database {
     pub async fn find_by_id(&self, id: i64) -> Result<Screenshot> {
         sqlx::query_as!(
             Screenshot,
-            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, dpi, description, status AS \"status: _\", window_title, application_name, text_content
+            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, description, status AS \"status: _\", window_title, application_name, text_content
             FROM screenshots 
             WHERE rowid = ?",
             id
@@ -87,7 +83,7 @@ impl Database {
     pub async fn find_most_recent_screenshot(&self) -> Result<Option<Screenshot>> {
         sqlx::query_as!(
             Screenshot,
-            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, dpi, description, status AS \"status: _\", window_title, application_name, text_content
+            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, description, status AS \"status: _\", window_title, application_name, text_content
             FROM screenshots 
             ORDER BY timestamp DESC
             LIMIT 1"
@@ -126,11 +122,10 @@ impl Database {
     pub async fn insert(&self, screenshot: NewScreenshot) -> Result<Screenshot> {
         info!("inserting screenshot {screenshot:?} into database");
         let result = sqlx::query!(
-            "INSERT INTO screenshots (timestamp, path, dpi, description, status, window_title, application_name)
-             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING rowid",
+            "INSERT INTO screenshots (timestamp, path, description, status, window_title, application_name)
+             VALUES (?, ?, ?, ?, ?, ?) RETURNING rowid",
             screenshot.timestamp,
             screenshot.path,
-            screenshot.dpi,
             None::<String>,
             ProcessingStatus::Pending,
             screenshot.window_title,
@@ -143,7 +138,6 @@ impl Database {
             id: result.rowid,
             timestamp: screenshot.timestamp,
             path: screenshot.path.clone(),
-            dpi: screenshot.dpi,
             description: None,
             status: ProcessingStatus::Pending,
             window_title: screenshot.window_title,
@@ -155,7 +149,7 @@ impl Database {
     pub async fn find_all(&self) -> Result<Vec<Screenshot>> {
         sqlx::query_as!(
             Screenshot,
-            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, dpi, description, status AS \"status: _\", window_title, application_name, text_content
+            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, description, status AS \"status: _\", window_title, application_name, text_content
             FROM screenshots"
         )
         .fetch_all(&self.pool)
@@ -166,7 +160,7 @@ impl Database {
     pub async fn find_pending(&self) -> Result<Vec<Screenshot>> {
         sqlx::query_as!(
             Screenshot,
-            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, dpi, description, status AS \"status: _\", window_title, application_name, text_content
+            "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, description, status AS \"status: _\", window_title, application_name, text_content
             FROM screenshots 
             WHERE status = ?",
             ProcessingStatus::Pending

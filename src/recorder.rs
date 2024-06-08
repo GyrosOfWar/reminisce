@@ -142,8 +142,6 @@ impl ScreenRecorder {
         encrypt_file(&path, self.passphrase.clone(), bytes.get_ref())?;
         let screenshot = NewScreenshot {
             path: path.to_string(),
-            // video_frame.dpi() crashes on macos
-            dpi: 72.0,
             timestamp: OffsetDateTime::now_utc(),
             window_title: title,
             application_name: app_name,
