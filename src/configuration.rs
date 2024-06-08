@@ -1,11 +1,11 @@
-use std::{fs::File, time::Duration};
+use std::fs::File;
+use std::time::Duration;
 
 use camino::Utf8PathBuf;
 use color_eyre::eyre::Context;
 use color_eyre::Result;
 use serde::Deserialize;
-use serde_with::serde_as;
-use serde_with::DurationSeconds;
+use serde_with::{serde_as, DurationSeconds};
 
 #[derive(Debug, Deserialize, Clone, Copy)]
 #[serde(rename_all = "lowercase")]

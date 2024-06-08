@@ -1,13 +1,9 @@
-use std::{
-    fs::File,
-    io::{Read, Write},
-};
+use std::fs::File;
+use std::io::{Read, Write};
 
-use age::{
-    secrecy::SecretString,
-    stream::{StreamReader, StreamWriter},
-    Decryptor, Encryptor,
-};
+use age::secrecy::SecretString;
+use age::stream::{StreamReader, StreamWriter};
+use age::{Decryptor, Encryptor};
 use camino::Utf8Path;
 use color_eyre::Result;
 
@@ -21,17 +17,19 @@ fn encrypting_writer(
     Ok(writer)
 }
 
-pub fn encrypt_file(
+pub async fn encrypt_file(
     path: impl AsRef<Utf8Path>,
     passphrase: SecretString,
-    data: &[u8],
+    data: Vec<u8>,
 ) -> Result<()> {
-    tokio::task::block_in_place(|| {
+    let path = path.as_ref().to_path_buf();
+    tokio::task::spawn_blocking(move || {
         let mut writer = encrypting_writer(path, passphrase)?;
-        writer.write_all(data)?;
+        writer.write_all(&data)?;
         writer.finish()?;
         Ok(())
     })
+    .await?
 }
 
 fn decrypting_reader(
@@ -49,13 +47,19 @@ fn decrypting_reader(
 }
 
 /// Decrypt a file and return the decrypted bytes.
-pub fn decrypt_file(path: impl AsRef<Utf8Path>, passphrase: &SecretString) -> Result<Vec<u8>> {
-    tokio::task::block_in_place(|| {
-        let mut reader = decrypting_reader(path, passphrase)?;
+pub async fn decrypt_file(
+    path: impl AsRef<Utf8Path>,
+    passphrase: &SecretString,
+) -> Result<Vec<u8>> {
+    let path = path.as_ref().to_path_buf();
+    let passphrase = passphrase.clone();
+    tokio::task::spawn_blocking(move || {
+        let mut reader = decrypting_reader(path, &passphrase)?;
         let mut decrypted = vec![];
         reader.read_to_end(&mut decrypted)?;
         Ok(decrypted)
     })
+    .await?
 }
 
 pub fn get_passphrase() -> Result<SecretString> {

@@ -35,13 +35,13 @@ pub struct Screenshot {
 }
 
 impl Screenshot {
-    pub fn load_image_bytes(&self, passphrase: &SecretString) -> Result<Vec<u8>> {
-        let bytes = encryption::decrypt_file(&self.path, passphrase)?;
+    pub async fn load_image_bytes(&self, passphrase: &SecretString) -> Result<Vec<u8>> {
+        let bytes = encryption::decrypt_file(&self.path, passphrase).await?;
         Ok(bytes)
     }
 
-    pub fn load_image(&self, passphrase: &SecretString) -> Result<RgbImage> {
-        let bytes = self.load_image_bytes(passphrase)?;
+    pub async fn load_image(&self, passphrase: &SecretString) -> Result<RgbImage> {
+        let bytes = self.load_image_bytes(passphrase).await?;
         let image = image::load_from_memory_with_format(&bytes, ImageFormat::Jpeg)?;
         Ok(image.into_rgb8())
     }

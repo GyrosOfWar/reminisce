@@ -2,16 +2,14 @@ use std::time::Duration;
 
 use age::secrecy::SecretString;
 use color_eyre::Result;
-use tokio::time;
-use tracing::{error, info};
-
-use crate::{
-    configuration::{Configuration, ProcessingType},
-    database::{Database, Screenshot},
-    health::SystemHealth,
-    image_processing::{llm, ocr},
-};
 use tokio::sync::mpsc;
+use tokio::time;
+use tracing::{debug, error, info};
+
+use crate::configuration::{Configuration, ProcessingType};
+use crate::database::{Database, Screenshot};
+use crate::health::SystemHealth;
+use crate::image_processing::{llm, ocr};
 
 pub struct WorkItem {
     pub screenshot: Screenshot,
@@ -52,7 +50,7 @@ impl WorkQueue {
 
     async fn process_llm(&self, screenshot: &Screenshot) -> Result<()> {
         let result = llm::generate_description(&screenshot, &self.passphrase).await?;
-        info!("llm result: {result}");
+        debug!("llm result: {result}");
         self.database
             .update_description(screenshot.id, &result)
             .await?;
@@ -61,8 +59,8 @@ impl WorkQueue {
     }
 
     async fn process_ocr(&self, screenshot: &Screenshot) -> Result<()> {
-        let title = ocr::extract_text(screenshot, &self.passphrase)?;
-        info!("ocr result: {title}");
+        let title = ocr::extract_text(screenshot, &self.passphrase).await?;
+        debug!("ocr result: {title}");
         self.database
             .update_text_content(screenshot.id, &title)
             .await?;

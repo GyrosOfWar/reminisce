@@ -1,27 +1,25 @@
+use std::io::Cursor;
+use std::time::Duration;
+
 use age::secrecy::SecretString;
-use color_eyre::{
-    eyre::{eyre, OptionExt},
-    Result,
+use color_eyre::eyre::{eyre, OptionExt};
+use color_eyre::Result;
+use crabgrab::capturable_content::{CapturableContent, CapturableContentFilter};
+use crabgrab::capture_stream::{
+    CaptureAccessToken, CaptureConfig, CapturePixelFormat, CaptureStream,
 };
-use crabgrab::{
-    capturable_content::{CapturableContent, CapturableContentFilter},
-    capture_stream::{CaptureAccessToken, CaptureConfig, CapturePixelFormat, CaptureStream},
-    feature::screenshot,
-    prelude::{FrameBitmap, VideoFrameBitmap},
-};
+use crabgrab::feature::screenshot;
+use crabgrab::prelude::{FrameBitmap, VideoFrameBitmap};
 use image::{DynamicImage, ImageBuffer, ImageFormat, RgbImage, RgbaImage};
-use std::{io::Cursor, time::Duration};
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
 use tracing::info;
 
-use crate::{
-    configuration::Configuration,
-    database::{Database, NewScreenshot, Screenshot},
-    encryption::encrypt_file,
-    image_processing::similarity::is_similar,
-    queue::WorkItem,
-};
+use crate::configuration::Configuration;
+use crate::database::{Database, NewScreenshot, Screenshot};
+use crate::encryption::encrypt_file;
+use crate::image_processing::similarity::is_similar;
+use crate::queue::WorkItem;
 
 struct CapturedScreenshot {
     bitmap: FrameBitmap,
@@ -72,12 +70,20 @@ impl ScreenRecorder {
 
         let active_window = active_win_pos_rs::get_active_window()
             .map_err(|_| eyre!("unable to get active window"))?;
+        info!("active window: {:?}", active_window);
+
         let window = content
             .windows()
             .find(|w| w.application().pid() == active_window.process_id as i32)
             .ok_or_eyre("could not find active window")?;
         let app_name = window.application().name();
         let title = window.title();
+        info!(
+            "capturing screenshot of application {} - {} (pid {})",
+            app_name,
+            title,
+            window.application().pid()
+        );
 
         let config = CaptureConfig::with_window(window, format)?;
         let video_frame = screenshot::take_screenshot(self.access_token.clone(), config).await?;
@@ -93,10 +99,11 @@ impl ScreenRecorder {
         let last_screenshot = self.database.find_most_recent_screenshot().await?;
         match last_screenshot {
             Some(last_screenshot) => {
-                let last_image = last_screenshot.load_image(&self.passphrase)?;
+                let last_image = last_screenshot.load_image(&self.passphrase).await?;
                 let last_image = DynamicImage::from(last_image);
                 let screenshot = DynamicImage::ImageRgb8(screenshot.clone());
-                Ok(!is_similar(&last_image, &screenshot))
+                let is_similar = !is_similar(&last_image, &screenshot)?;
+                Ok(!is_similar)
             }
             None => Ok(true),
         }
@@ -139,7 +146,7 @@ impl ScreenRecorder {
             .join(format!("{}.jpeg.enc", timestamp));
         let mut bytes = Cursor::new(vec![]);
         image.write_to(&mut bytes, ImageFormat::Jpeg)?;
-        encrypt_file(&path, self.passphrase.clone(), bytes.get_ref())?;
+        encrypt_file(&path, self.passphrase.clone(), bytes.into_inner()).await?;
         let screenshot = NewScreenshot {
             path: path.to_string(),
             timestamp: OffsetDateTime::now_utc(),
@@ -155,12 +162,19 @@ impl ScreenRecorder {
     pub async fn start(&self) -> Result<()> {
         info!("starting screen recorder");
         loop {
-            if let Some(screenshot) = self.create_screenshot().await? {
-                self.sender.send(WorkItem { screenshot })?;
-                tokio::time::sleep(self.interval).await;
-            } else {
-                info!("screenshots are too similar, skipping");
+            match self.create_screenshot().await {
+                Ok(Some(screenshot)) => {
+                    self.sender.send(WorkItem { screenshot })?;
+                }
+                Ok(None) => {
+                    info!("screenshots are too similar, skipping");
+                }
+                Err(e) => {
+                    info!("error creating screenshot: {e}");
+                }
             }
+
+            tokio::time::sleep(self.interval).await;
         }
     }
 }
