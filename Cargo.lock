@@ -2780,6 +2780,7 @@ dependencies = [
  "ocrs",
  "ollama-rs",
  "rpassword",
+ "rten",
  "serde",
  "serde_json",
  "serde_with",

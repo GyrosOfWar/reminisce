@@ -4,7 +4,9 @@ use color_eyre::{eyre::eyre, Result};
 use ocrs::{ImageSource, OcrEngine, OcrEngineParams};
 
 pub fn extract_text(screenshot: &Screenshot, passphrase: &SecretString) -> Result<String> {
-    let params = OcrEngineParams::default();
+    let mut params = OcrEngineParams::default();
+    params.recognition_model = Some(rten::Model::load_file("models/text-recognition.rten")?);
+    params.detection_model = Some(rten::Model::load_file("models/text-detection.rten")?);
     let engine = OcrEngine::new(params).map_err(|e| eyre!("Failed to create engine: {}", e))?;
     let bytes = screenshot.load_image(passphrase)?;
     let image = image::load_from_memory_with_format(&bytes, image::ImageFormat::Jpeg)?.into_rgb8();

@@ -1,0 +1,7 @@
+{
+  "screenshotInterval": 30,
+  "workInterval": 15,
+  "screenshotDirectory": "./screenshots",
+  "databaseUrl": "sqlite:reminisce.sqlite3?mode=rwc",
+  "processing": ["ocr"]
+}

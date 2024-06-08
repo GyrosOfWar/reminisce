@@ -1,11 +1,10 @@
-use active_win_pos_rs::ActiveWindow;
 use age::secrecy::SecretString;
 use color_eyre::{
     eyre::{eyre, OptionExt},
     Result,
 };
 use crabgrab::{
-    capturable_content::{CapturableContent, CapturableContentFilter, CapturableWindow},
+    capturable_content::{CapturableContent, CapturableContentFilter},
     capture_stream::{CaptureAccessToken, CaptureConfig, CapturePixelFormat, CaptureStream},
     feature::screenshot,
     prelude::{FrameBitmap, VideoFrameBitmap},

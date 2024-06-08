@@ -1,6 +1,7 @@
 use std::{fs::File, time::Duration};
 
 use camino::Utf8PathBuf;
+use color_eyre::eyre::Context;
 use color_eyre::Result;
 use serde::Deserialize;
 use serde_with::serde_as;
@@ -49,7 +50,7 @@ impl Default for Configuration {
 }
 
 pub fn load() -> Result<Configuration> {
-    let file = File::open("reminisce.json")?;
-    let config = serde_json::from_reader(file)?;
+    let file = File::open("reminisce.json").wrap_err("unable to open reminisce.json")?;
+    let config = serde_json::from_reader(file).wrap_err("unable to deserialize configuration")?;
     Ok(config)
 }

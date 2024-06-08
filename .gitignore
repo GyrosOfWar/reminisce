@@ -6,3 +6,4 @@ screenshots/*.jpeg
 *.sqlite3
 .DS_Store
 reminisce.json
+models/*.rten
