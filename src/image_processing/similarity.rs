@@ -1,4 +1,4 @@
-use image::{flat::SampleLayout, DynamicImage, GenericImageView};
+use image::{flat::SampleLayout, DynamicImage};
 use ndarray::{Array2, ShapeBuilder};
 
 fn to_ndarray(image: DynamicImage) -> Array2<f32> {

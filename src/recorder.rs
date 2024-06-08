@@ -91,10 +91,15 @@ impl ScreenRecorder {
 
     async fn should_save_screenshot(&self, screenshot: &RgbImage) -> Result<bool> {
         let last_screenshot = self.database.find_most_recent_screenshot().await?;
-        let last_image = last_screenshot.load_image(&self.passphrase)?;
-        let last_image = DynamicImage::from(last_image);
-        let screenshot = DynamicImage::ImageRgb8(screenshot.clone());
-        Ok(!is_similar(&last_image, &screenshot))
+        match last_screenshot {
+            Some(last_screenshot) => {
+                let last_image = last_screenshot.load_image(&self.passphrase)?;
+                let last_image = DynamicImage::from(last_image);
+                let screenshot = DynamicImage::ImageRgb8(screenshot.clone());
+                Ok(!is_similar(&last_image, &screenshot))
+            }
+            None => Ok(true),
+        }
     }
 
     async fn create_screenshot(&self) -> Result<Option<Screenshot>> {

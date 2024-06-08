@@ -1,6 +1,6 @@
 use age::secrecy::SecretString;
 use color_eyre::Result;
-use image::{DynamicImage, ImageFormat, RgbImage};
+use image::{ImageFormat, RgbImage};
 use sqlx::SqlitePool;
 use time::OffsetDateTime;
 use tracing::info;
@@ -84,7 +84,7 @@ impl Database {
         .map_err(From::from)
     }
 
-    pub async fn find_most_recent_screenshot(&self) -> Result<Screenshot> {
+    pub async fn find_most_recent_screenshot(&self) -> Result<Option<Screenshot>> {
         sqlx::query_as!(
             Screenshot,
             "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, dpi, description, status AS \"status: _\", window_title, application_name, text_content
@@ -92,7 +92,7 @@ impl Database {
             ORDER BY timestamp DESC
             LIMIT 1"
         )
-        .fetch_one(&self.pool)
+        .fetch_optional(&self.pool)
         .await
         .map_err(From::from)
     }
