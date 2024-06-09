@@ -1,6 +1,6 @@
 use age::secrecy::SecretString;
 use camino::Utf8PathBuf;
-use color_eyre::Result;
+use color_eyre::{eyre::bail, Result};
 use configuration::Configuration;
 use database::Database;
 use queue::WorkQueue;
@@ -14,6 +14,33 @@ mod health;
 mod image_processing;
 mod queue;
 mod recorder;
+
+async fn confirm_or_create_passphrase(
+    database: &Database,
+    config: &Configuration,
+) -> Result<SecretString> {
+    let screenshot_count = database.count().await?;
+    let test_file_path = config.screenshot_directory.join(".test");
+    if screenshot_count == 0 {
+        let passphrase = encryption::get_passphrase("Please create a passphrase: ")?;
+        encryption::encrypt_file(
+            test_file_path,
+            passphrase.clone(),
+            "data".as_bytes().to_vec(),
+        )
+        .await?;
+
+        Ok(passphrase)
+    } else {
+        let passphrase = encryption::get_passphrase("Please enter your passphrase: ")?;
+        let result = encryption::decrypt_file(&test_file_path, &passphrase).await;
+        if result.is_err() {
+            bail!("Wrong passphrase")
+        } else {
+            Ok(passphrase)
+        }
+    }
+}
 
 async fn start_recorder(
     database: Database,
@@ -100,8 +127,8 @@ async fn main() -> Result<()> {
     let configuration = configuration::load()?;
     info!("starting up, using configuration {configuration:?}");
 
-    let passphrase = encryption::get_passphrase()?;
-    let database = Database::new(&configuration.database_url).await?;
+    let database = Database::new(&configuration.database_file_name).await?;
+    let passphrase = confirm_or_create_passphrase(&database, &configuration).await?;
 
     let argument = env::args().nth(1);
     match argument.as_deref() {

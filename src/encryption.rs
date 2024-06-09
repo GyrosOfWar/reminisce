@@ -62,7 +62,7 @@ pub async fn decrypt_file(
     .await?
 }
 
-pub fn get_passphrase() -> Result<SecretString> {
-    let input = rpassword::prompt_password("Enter your passphrase: ")?;
+pub fn get_passphrase(prompt: &str) -> Result<SecretString> {
+    let input = rpassword::prompt_password(prompt)?;
     Ok(SecretString::new(input))
 }

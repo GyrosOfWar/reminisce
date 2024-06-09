@@ -1,8 +1,8 @@
 /target
 .env
 *.sqlite3
-screenshots/*.enc
-screenshots/*.jpeg
+screenshots/*
+!screenshots/.keep
 *.sqlite3
 .DS_Store
 reminisce.json

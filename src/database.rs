@@ -1,7 +1,7 @@
 use age::secrecy::SecretString;
 use color_eyre::Result;
 use image::{ImageFormat, RgbImage};
-use sqlx::SqlitePool;
+use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
 use time::OffsetDateTime;
 use tracing::info;
 
@@ -68,8 +68,11 @@ pub struct Database {
 }
 
 impl Database {
-    pub async fn new(database_url: &str) -> Result<Self> {
-        let pool = SqlitePool::connect(database_url).await?;
+    pub async fn new(file_name: &str) -> Result<Self> {
+        let options = SqliteConnectOptions::new()
+            .filename(file_name)
+            .create_if_missing(true);
+        let pool = SqlitePool::connect_with(options).await?;
 
         Ok(Self { pool })
     }
@@ -162,6 +165,13 @@ impl Database {
         .fetch_all(&self.pool)
         .await
         .map_err(From::from)
+    }
+
+    pub async fn count(&self) -> Result<i32> {
+        let result = sqlx::query_scalar!("SELECT COUNT(*) FROM screenshots")
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(result)
     }
 
     pub async fn find_pending(&self) -> Result<Vec<Screenshot>> {

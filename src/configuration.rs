@@ -30,8 +30,8 @@ pub struct Configuration {
     /// The directory where screenshots are stored.
     pub screenshot_directory: Utf8PathBuf,
 
-    /// The SQLite database URL.
-    pub database_url: String,
+    /// The SQLite database file name.
+    pub database_file_name: String,
 
     /// How to process the screenshots.
     pub processing: Vec<ProcessingType>,
@@ -43,7 +43,7 @@ impl Default for Configuration {
             screenshot_interval: Duration::from_secs(60),
             work_interval: Duration::from_secs(120),
             screenshot_directory: Utf8PathBuf::from("screenshots"),
-            database_url: "sqlite:reminisce.sqlite3?mode=rwc".to_string(),
+            database_file_name: "reminisce.sqlite3".to_string(),
             processing: vec![ProcessingType::Ocr, ProcessingType::Embeddings],
         }
     }
