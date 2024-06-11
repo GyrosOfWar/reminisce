@@ -21,6 +21,12 @@ use crate::encryption::encrypt_file;
 use crate::image_processing::similarity::is_similar;
 use crate::queue::WorkItem;
 
+#[derive(Debug, Clone, Copy)]
+enum CaptureType {
+    Screen,
+    ActiveWindow,
+}
+
 struct CapturedScreenshot {
     bitmap: FrameBitmap,
     app_name: String,
@@ -63,7 +69,7 @@ impl ScreenRecorder {
     }
 
     #[instrument(skip(self))]
-    async fn capture_screen(&self) -> Result<CapturedScreenshot> {
+    async fn capture(&self, capture_type: CaptureType) -> Result<CapturedScreenshot> {
         let filter = CapturableContentFilter::EVERYTHING_NORMAL;
         let content = CapturableContent::new(filter).await?;
         // supported by both windows and macos
@@ -82,8 +88,13 @@ impl ScreenRecorder {
         let title = window.title();
         info!("capturing window: {} - {}", app_name, title);
 
-        let display = content.displays().next().ok_or_eyre("no displays found")?;
-        let config = CaptureConfig::with_display(display, format);
+        let config = match capture_type {
+            CaptureType::Screen => {
+                CaptureConfig::with_display(content.displays().next().unwrap(), format)
+            }
+            CaptureType::ActiveWindow => CaptureConfig::with_window(window, format)?,
+        };
+
         let video_frame = screenshot::take_screenshot(self.access_token, config).await?;
         let bitmap = video_frame.get_bitmap()?;
         Ok(CapturedScreenshot {
@@ -101,7 +112,7 @@ impl ScreenRecorder {
                 let last_image = last_screenshot.load_image(&self.passphrase).await?;
                 let last_image = DynamicImage::from(last_image);
                 let screenshot = DynamicImage::ImageRgb8(screenshot.clone());
-                let is_similar = !is_similar(&last_image, &screenshot)?;
+                let is_similar = is_similar(&last_image, &screenshot)?;
                 Ok(!is_similar)
             }
             None => Ok(true),
@@ -114,7 +125,7 @@ impl ScreenRecorder {
             bitmap,
             app_name,
             title,
-        } = self.capture_screen().await?;
+        } = self.capture(CaptureType::ActiveWindow).await?;
         let pixels = match bitmap {
             FrameBitmap::BgraUnorm8x4(bitmap) => bitmap,
             FrameBitmap::RgbaUnormPacked1010102(_) => unreachable!(),

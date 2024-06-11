@@ -75,6 +75,10 @@ impl WorkQueue {
 
     async fn do_work(&self, WorkItem { screenshot }: WorkItem) -> Result<()> {
         for processing_type in &self.configuration.processing {
+            info!(
+                "processing screenshot {} with {processing_type:?}",
+                screenshot.id
+            );
             match processing_type {
                 ProcessingType::Llm => self.process_llm(&screenshot).await?,
                 ProcessingType::Ocr => self.process_ocr(&screenshot).await?,
@@ -99,6 +103,8 @@ impl WorkQueue {
 
         loop {
             if self.is_available_for_work().await {
+                info!("current queue length: {}", self.rx.len());
+
                 debug!("system is available for work");
                 let next_item = self.rx.try_recv();
                 if let Ok(item) = next_item {

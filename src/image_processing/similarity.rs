@@ -1,8 +1,9 @@
-use color_eyre::eyre::{bail, Context};
+use color_eyre::eyre::Context;
 use color_eyre::Result;
 use image::flat::SampleLayout;
 use image::{DynamicImage, GenericImageView};
 use ndarray::{Array2, ShapeBuilder};
+use tracing::info;
 
 fn to_ndarray(image: DynamicImage) -> Result<Array2<f32>> {
     let image = image.to_rgb32f();
@@ -23,7 +24,9 @@ fn to_ndarray(image: DynamicImage) -> Result<Array2<f32>> {
 /// Source: https://github.com/openrecall/openrecall/blob/main/openrecall/app.py#L247
 fn similarity_index(image1: &DynamicImage, image2: &DynamicImage, l: f32) -> Result<f32> {
     if image1.dimensions() != image2.dimensions() {
-        bail!("Images must have the same dimensions");
+        // if images aren't the same size, consider them completely different
+        info!("Images are different sizes, returning 0.0");
+        return Ok(0.0);
     }
 
     let k1 = 0.01;
@@ -49,6 +52,7 @@ fn similarity_index(image1: &DynamicImage, image2: &DynamicImage, l: f32) -> Res
     let ssim_index = ((2.0 * mu1 * mu2 + c1) * (2.0 * sigma12 + c2))
         / ((mu1 * mu1 + mu2 * mu2 + c1) * (sigma1_sq + sigma2_sq + c2));
 
+    info!("SSIM index: {}", ssim_index);
     Ok(ssim_index)
 }
 

@@ -1,11 +1,13 @@
 use age::secrecy::SecretString;
 use camino::Utf8PathBuf;
-use color_eyre::{eyre::bail, Result};
+use color_eyre::eyre::bail;
+use color_eyre::Result;
 use configuration::Configuration;
 use database::Database;
 use queue::WorkQueue;
 use recorder::ScreenRecorder;
 use tracing::info;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 mod configuration;
 mod database;
@@ -121,7 +123,10 @@ async fn main() -> Result<()> {
     if use_tokio_console {
         console_subscriber::init();
     } else {
-        tracing_subscriber::fmt().compact().init();
+        tracing_subscriber::fmt()
+            .compact()
+            .with_span_events(FmtSpan::CLOSE)
+            .init();
     }
 
     let configuration = configuration::load()?;

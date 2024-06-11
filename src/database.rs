@@ -1,7 +1,8 @@
 use age::secrecy::SecretString;
 use color_eyre::Result;
 use image::{ImageFormat, RgbImage};
-use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
+use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::SqlitePool;
 use time::OffsetDateTime;
 use tracing::info;
 
