@@ -82,7 +82,7 @@ impl Database {
         sqlx::query_as!(
             Screenshot,
             "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, description, status AS \"status: _\", window_title, application_name, text_content
-            FROM screenshots 
+            FROM screenshots
             WHERE rowid = ?",
             id
         )
@@ -95,7 +95,7 @@ impl Database {
         sqlx::query_as!(
             Screenshot,
             "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, description, status AS \"status: _\", window_title, application_name, text_content
-            FROM screenshots 
+            FROM screenshots
             ORDER BY timestamp DESC
             LIMIT 1"
         )
@@ -168,7 +168,7 @@ impl Database {
         .map_err(From::from)
     }
 
-    pub async fn count(&self) -> Result<i32> {
+    pub async fn count(&self) -> Result<i64> {
         let result = sqlx::query_scalar!("SELECT COUNT(*) FROM screenshots")
             .fetch_one(&self.pool)
             .await?;
@@ -179,7 +179,7 @@ impl Database {
         sqlx::query_as!(
             Screenshot,
             "SELECT rowid AS id, timestamp AS \"timestamp: _\", path, description, status AS \"status: _\", window_title, application_name, text_content
-            FROM screenshots 
+            FROM screenshots
             WHERE status = ?",
             ProcessingStatus::Pending
         )

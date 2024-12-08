@@ -9,7 +9,7 @@ use crabgrab::capture_stream::{
     CaptureAccessToken, CaptureConfig, CapturePixelFormat, CaptureStream,
 };
 use crabgrab::feature::screenshot;
-use crabgrab::prelude::{FrameBitmap, VideoFrameBitmap};
+use crabgrab::prelude::{FrameBitmap, FrameBitmapBgraUnorm8x4, VideoFrameBitmap};
 use image::{DynamicImage, ImageBuffer, ImageFormat, RgbImage, RgbaImage};
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
@@ -28,7 +28,7 @@ enum CaptureType {
 }
 
 struct CapturedScreenshot {
-    bitmap: FrameBitmap,
+    bitmap: FrameBitmap<Box<[[u8; 4]]>, Box<[u32]>, Box<[[f16; 4]]>, Box<[u8]>, Box<[[u8; 2]]>>,
     app_name: String,
     title: String,
 }
@@ -127,11 +127,15 @@ impl ScreenRecorder {
             title,
         } = self.capture(CaptureType::ActiveWindow).await?;
         let pixels = match bitmap {
-            FrameBitmap::BgraUnorm8x4(bitmap) => bitmap,
-            FrameBitmap::RgbaUnormPacked1010102(_) => unreachable!(),
-            FrameBitmap::RgbaF16x4(_) => unreachable!(),
-            FrameBitmap::YCbCr(_) => unreachable!(),
+            FrameBitmap::BgraUnorm8x4(frame_bitmap_bgra_unorm8x4) => todo!(),
+            FrameBitmap::ArgbUnormPacked2101010(frame_bitmap_argb_unorm_packed2101010) => todo!(),
+            FrameBitmap::RgbaF16x4(frame_bitmap_rgba_f16x4) => todo!(),
+            FrameBitmap::YCbCr(frame_bitmap_ycb_cr) => todo!(),
         };
+        // FrameBitmap::BgraUnorm8x4(bitmap) => bitmap,
+        // FrameBitmap::RgbaUnormPacked1010102(_) => unreachable!(),
+        // FrameBitmap::RgbaF16x4(_) => unreachable!(),
+        // FrameBitmap::YCbCr(_) => unreachable!(),
 
         let data: Vec<_> = pixels
             .data
