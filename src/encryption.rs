@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::{Read, Write};
+use std::iter;
 
+use age::scrypt::Identity;
 use age::secrecy::SecretString;
 use age::stream::{StreamReader, StreamWriter};
 use age::{Decryptor, Encryptor};
@@ -34,16 +36,13 @@ pub async fn encrypt_file(
 
 fn decrypting_reader(
     path: impl AsRef<Utf8Path>,
-    passphrase: &SecretString,
+    passphrase: SecretString,
 ) -> Result<StreamReader<File>> {
     let encrypted = File::open(path.as_ref())?;
+    let decryptor = Decryptor::new(encrypted)?;
+    let reader = decryptor.decrypt(iter::once(&Identity::new(passphrase) as _))?;
 
-    let decryptor = match Decryptor::new(encrypted)? {
-        Decryptor::Passphrase(d) => d,
-        _ => unreachable!(),
-    };
-
-    decryptor.decrypt(passphrase, None).map_err(From::from)
+    Ok(reader)
 }
 
 /// Decrypt a file and return the decrypted bytes.
@@ -54,7 +53,7 @@ pub async fn decrypt_file(
     let path = path.as_ref().to_path_buf();
     let passphrase = passphrase.clone();
     tokio::task::spawn_blocking(move || {
-        let mut reader = decrypting_reader(path, &passphrase)?;
+        let mut reader = decrypting_reader(path, passphrase)?;
         let mut decrypted = vec![];
         reader.read_to_end(&mut decrypted)?;
         Ok(decrypted)
@@ -64,5 +63,5 @@ pub async fn decrypt_file(
 
 pub fn get_passphrase(prompt: &str) -> Result<SecretString> {
     let input = rpassword::prompt_password(prompt)?;
-    Ok(SecretString::new(input))
+    Ok(SecretString::from(input))
 }
