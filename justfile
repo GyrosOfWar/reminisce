@@ -8,11 +8,11 @@ download-models:
     http get "https://ocrs-models.s3-accelerate.amazonaws.com/text-recognition.rten"| save models/text-recognition.rten
 
 create-config:
-    cp reminisce.exampel.json reminisce.json
+    cp reminisce.example.json reminisce.json
     echo "DATABASE_URL=sqlite:reminisce.sqlite3?mode=rwc" | save .env 
 
 create-database:
-    cargo sqlx migrate
+    cargo sqlx migrate run
 
 setup:
     just download-models

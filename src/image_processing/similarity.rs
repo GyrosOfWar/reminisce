@@ -56,7 +56,11 @@ fn similarity_index(image1: &DynamicImage, image2: &DynamicImage, l: f32) -> Res
     Ok(ssim_index)
 }
 
-pub fn is_similar(image1: &DynamicImage, image2: &DynamicImage) -> Result<bool> {
-    let similarity = similarity_index(image1, image2, 255.0)?;
-    Ok(similarity > 0.9)
+pub fn is_similar(image1: &DynamicImage, image2: &DynamicImage, threshold: f32) -> Result<bool> {
+    if threshold == 0.0 {
+        Ok(false)
+    } else {
+        let similarity = similarity_index(image1, image2, 255.0)?;
+        Ok(similarity > threshold)
+    }
 }

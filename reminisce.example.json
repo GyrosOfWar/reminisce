@@ -3,5 +3,6 @@
   "workInterval": 15,
   "screenshotDirectory": "./screenshots",
   "databaseFileName": "reminisce.sqlite3",
-  "processing": ["ocr"]
+  "processing": ["ocr"],
+  "similarityThreshold": 0.9
 }

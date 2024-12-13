@@ -35,6 +35,8 @@ pub struct Configuration {
 
     /// How to process the screenshots.
     pub processing: Vec<ProcessingType>,
+
+    pub similarity_threshold: f32,
 }
 
 impl Default for Configuration {
@@ -45,6 +47,7 @@ impl Default for Configuration {
             screenshot_directory: Utf8PathBuf::from("screenshots"),
             database_file_name: "reminisce.sqlite3".to_string(),
             processing: vec![ProcessingType::Ocr, ProcessingType::Embeddings],
+            similarity_threshold: 0.9,
         }
     }
 }

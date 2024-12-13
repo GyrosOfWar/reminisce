@@ -112,7 +112,11 @@ impl ScreenRecorder {
                 let last_image = last_screenshot.load_image(&self.passphrase).await?;
                 let last_image = DynamicImage::from(last_image);
                 let screenshot = DynamicImage::ImageRgb8(screenshot.clone());
-                let is_similar = is_similar(&last_image, &screenshot)?;
+                let is_similar = is_similar(
+                    &last_image,
+                    &screenshot,
+                    self.configuration.similarity_threshold,
+                )?;
                 Ok(!is_similar)
             }
             None => Ok(true),
@@ -128,11 +132,12 @@ impl ScreenRecorder {
         } = self.capture(CaptureType::ActiveWindow).await?;
         let pixels = match bitmap {
             FrameBitmap::BgraUnorm8x4(frame) => frame,
-            FrameBitmap::ArgbUnormPacked2101010(frame) => unimplemented!(),
-            FrameBitmap::RgbaF16x4(frame) => unimplemented!(),
-            FrameBitmap::YCbCr(frame) => unimplemented!(),
+            FrameBitmap::ArgbUnormPacked2101010(_) => unimplemented!(),
+            FrameBitmap::RgbaF16x4(_) => unimplemented!(),
+            FrameBitmap::YCbCr(_) => unimplemented!(),
         };
 
+        // TODO this is probably inefficient...
         let data: Vec<_> = pixels
             .data
             .iter()
