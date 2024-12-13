@@ -80,10 +80,11 @@ async fn decrypt_screenshots(
 ) -> Result<()> {
     let screenshots = database.find_all().await?;
     for screenshot in screenshots {
+        info!("decrypting screenshot {}", screenshot.id);
         let bytes = encryption::decrypt_file(&screenshot.path, &passphrase).await?;
         let path = configuration
             .screenshot_directory
-            .join(format!("{}.jpeg", screenshot.id));
+            .join(format!("{}.png", screenshot.id));
         tokio::fs::write(path, bytes).await?;
     }
 

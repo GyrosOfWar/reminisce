@@ -50,7 +50,7 @@ impl Screenshot {
 
     pub async fn load_image(&self, passphrase: &SecretString) -> Result<RgbImage> {
         let bytes = self.load_image_bytes(passphrase).await?;
-        let image = image::load_from_memory_with_format(&bytes, ImageFormat::Jpeg)?;
+        let image = image::load_from_memory_with_format(&bytes, ImageFormat::Png)?;
         Ok(image.into_rgb8())
     }
 }

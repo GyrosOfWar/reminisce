@@ -159,9 +159,9 @@ impl ScreenRecorder {
         let path = self
             .configuration
             .screenshot_directory
-            .join(format!("{}.jpeg.enc", timestamp));
+            .join(format!("{}.png.enc", timestamp));
         let mut bytes = Cursor::new(vec![]);
-        image.write_to(&mut bytes, ImageFormat::Jpeg)?;
+        image.write_to(&mut bytes, ImageFormat::Png)?;
         encrypt_file(&path, self.passphrase.clone(), bytes.into_inner()).await?;
         let screenshot = NewScreenshot {
             path: path.to_string(),
